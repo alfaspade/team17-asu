@@ -1,0 +1,93 @@
+
+#include <Adafruit_NeoPixel.h>
+#include <LiquidCrystal.h>
+ 
+#define LED_PIN 8
+#define TRIGGER_PIN 13  //Ultrasound Sensor
+#define SONAR_ECHO_PIN 7
+
+#define CAUTION_LED_COUNT     4  
+#define DANGER_LED_COUNT      8  
+#define SPEED_OF_SOUND_IPUS    0.0135039
+#define DELAY_MS           0.010
+#define RED            255
+
+LiquidCrystal Display(12, 11, 5, 4, 3, 2); // LCD interface pins
+
+Adafruit_NeoPixel Caution_Pixels = Adafruit_NeoPixel(CAUTION_LED_COUNT,LED_PIN,NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel Danger_Pixels = Adafruit_NeoPixel(DANGER_LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+float now,
+      last_now=0,
+      distance_inches,
+      speed_fps,    
+      speed_of_trailing_car,
+      distance_ft_now,
+      distance_traveled_ft,
+      sonar_echo_duration,
+      distance_ft_last=0,
+      time_delta;
+
+void setup() {
+  Caution_Pixels.begin();
+  Danger_Pixels.begin();  
+  Display.begin(16, 1); //(col,rows)
+  pinMode(TRIGGER_PIN, OUTPUT);
+  pinMode(SONAR_ECHO_PIN, INPUT);
+  Serial.begin(9600);
+  }
+
+void loop() {
+  now=millis(); 
+  time_delta=now-last_now;  
+  last_now=now;                                                         
+//Reset Trigger
+  digitalWrite(TRIGGER_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIGGER_PIN, HIGH);
+  delayMicroseconds(DELAY_MS);  //10us is required trigger input
+
+//Compute Distance  WORKS
+  sonar_echo_duration= pulseIn(SONAR_ECHO_PIN, HIGH); //in ms, 2way
+  distance_ft_now=(sonar_echo_duration*SPEED_OF_SOUND_IPUS/2)/12;
+  if (distance_ft_now> 14) return;
+
+//Display in serial monitor what the distance and speed
+  distance_traveled_ft= distance_ft_last-distance_ft_now;
+  Serial.print("distance_traveled_ft: ");
+  Serial.print(distance_traveled_ft);
+  //if (distance_traveled_ft<0) return;
+  speed_of_trailing_car = distance_traveled_ft/(time_delta/1000);
+  Serial.print("     speed_of_trailing_car: ");
+  Serial.print(speed_of_trailing_car);
+  Serial.println();
+  distance_ft_last=distance_ft_now;
+  Serial.print("Distance: ");
+  Serial.println(distance_ft_now);
+                                                         
+//IF statements
+  if (distance_ft_now <= 6 && speed_fps>0){
+  for (int i=0; i < CAUTION_LED_COUNT; i++) {
+    // Caution_pixels.Color takes RGB values, from 0,0,0 up to 255,255,255
+    Caution_Pixels.setPixelColor(i, Caution_Pixels.Color(RED, 0, 0));
+    // This sends the updated pixel color to the hardware.
+    Caution_Pixels.show();
+    // Delay for a period of time (in milliseconds).
+    delay(DELAY_MS);
+    Display.print("    !CAUTION!     ");
+  }
+  }
+  if (distance_ft_now >= 14 && distance_ft_now<=14 && speed_fps>5){
+  for (int i=0; i < DANGER_LED_COUNT; i++) {
+    // Danger_pixels.Color takes RGB values, from 0,0,0 up to 255,255,255
+    Danger_Pixels.setPixelColor(i, Danger_Pixels.Color(RED, 0, 0));
+
+    // This sends the updated pixel color to the hardware.
+    Danger_Pixels.show();
+
+    // Delay for a period of time (in milliseconds).
+    delay(DELAY_MS);
+    Display.print("    !!STOP!!     ");
+  }
+  }
+}
